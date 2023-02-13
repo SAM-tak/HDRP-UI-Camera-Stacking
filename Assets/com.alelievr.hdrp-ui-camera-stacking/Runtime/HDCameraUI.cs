@@ -80,7 +80,7 @@ public class HDCameraUI : MonoBehaviour
     /// Specifies the graphics format to use when rendering the UI.
     /// </summary>
     [Tooltip("Specifies the graphics format to use when rendering the UI.")]
-    public GraphicsFormat graphicsFormat = GraphicsFormat.R8G8B8A8_SRGB;
+    public GraphicsFormat graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
 
     /// <summary>
     /// Specifies on which camera the UI needs to be rendered. The default is Main Camera only.
@@ -244,6 +244,8 @@ public class HDCameraUI : MonoBehaviour
 
     internal bool DirectRendering => compositingMode == CompositingMode.Automatic && !skipCameraColorInit;
 
+    internal bool IsActive => isActiveAndEnabled && attachedCamera.isActiveAndEnabled;
+
     internal void RenderUI(ScriptableRenderContext ctx, CommandBuffer cmd, RenderTargetIdentifier target)
     {
         if(RenderPipelineManager.currentPipeline is not HDRenderPipeline hdrp)
@@ -311,6 +313,4 @@ public class HDCameraUI : MonoBehaviour
             ctx.ExecuteCommandBuffer(cmd);
         }
     }
-
-    internal bool IsActive() => isActiveAndEnabled && attachedCamera.isActiveAndEnabled;
 }

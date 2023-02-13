@@ -10,7 +10,6 @@ using UnityEditor;
 
 [InitializeOnLoad]
 #endif
-
 public static class CameraStackingCompositing
 {
     public static ProfilingSampler compositingSampler;
@@ -63,54 +62,52 @@ public static class CameraStackingCompositing
             CoreUtils.SetRenderTarget(cmd, BuiltinRenderTextureType.CameraTarget);
             foreach (var ui in uiList)
             {
-                if (ui.IsActive())
+                if (!ui.IsActive) continue;
+                // Check if the target camera in HDCameraUI matches the current camera
+                switch (ui.targetCamera)
                 {
-                    // Check if the target camera in HDCameraUI matches the current camera
-                    switch (ui.targetCamera)
+                    case HDCameraUI.TargetCamera.Main:
+                        if (camera != Camera.main)
+                            continue;
+                        break;
+                    case HDCameraUI.TargetCamera.Layer:
+                        if (((1 << camera.gameObject.layer) & ui.targetCameraLayer) == 0)
+                            continue;
+                        break;
+                    case HDCameraUI.TargetCamera.Specific:
+                        if (camera != ui.targetCameraObject)
+                            continue;
+                        break;
+                }
+
+                // Render the UI of the camera using the current back buffer as clear value
+                RenderTargetIdentifier target = camera.targetTexture != null ? camera.targetTexture : BuiltinRenderTextureType.CameraTarget;
+                ui.RenderUI(ctx, cmd, target);
+
+                if (!ui.DirectRendering)
+                {
+                    uiProperties.SetTexture("_MainTex", ui.internalRenderTexture);
+
+                    cmd.SetRenderTarget(target);
+
+                    cmd.SetViewport(camera.pixelRect);
+
+                    // Do the UI compositing
+                    switch (ui.compositingMode)
                     {
-                        case HDCameraUI.TargetCamera.Main:
-                            if (camera != Camera.main)
-                                continue;
+                        default:
+                        case HDCameraUI.CompositingMode.Automatic:
+                            cmd.DrawProcedural(Matrix4x4.identity, compositingMaterial, 0, MeshTopology.Triangles, 3, 1, uiProperties);
                             break;
-                        case HDCameraUI.TargetCamera.Layer:
-                            if (((1 << camera.gameObject.layer) & ui.targetCameraLayer) == 0)
-                                continue;
+                        case HDCameraUI.CompositingMode.Custom:
+                            if (ui.compositingMaterial != null)
+                            {
+                                cmd.DrawProcedural(Matrix4x4.identity, ui.compositingMaterial, ui.compositingMaterialPass, MeshTopology.Triangles, 3, 1, uiProperties);
+                            }
                             break;
-                        case HDCameraUI.TargetCamera.Specific:
-                            if (camera != ui.targetCameraObject)
-                                continue;
+                        case HDCameraUI.CompositingMode.Manual:
+                            // The user manually composite the UI.
                             break;
-                    }
-
-                    // Render the UI of the camera using the current back buffer as clear value
-                    RenderTargetIdentifier target = camera.targetTexture != null ? camera.targetTexture : BuiltinRenderTextureType.CameraTarget;
-                    ui.RenderUI(ctx, cmd, target);
-
-                    if (!ui.DirectRendering)
-                    {
-                        uiProperties.SetTexture("_MainTex", ui.internalRenderTexture);
-
-                        cmd.SetRenderTarget(target);
-
-                        cmd.SetViewport(camera.pixelRect);
-
-                        // Do the UI compositing
-                        switch (ui.compositingMode)
-                        {
-                            default:
-                            case HDCameraUI.CompositingMode.Automatic:
-                                cmd.DrawProcedural(Matrix4x4.identity, compositingMaterial, 0, MeshTopology.Triangles, 3, 1, uiProperties);
-                                break;
-                            case HDCameraUI.CompositingMode.Custom:
-                                if (ui.compositingMaterial != null)
-                                {
-                                    cmd.DrawProcedural(Matrix4x4.identity, ui.compositingMaterial, ui.compositingMaterialPass, MeshTopology.Triangles, 3, 1, uiProperties);
-                                }
-                                break;
-                            case HDCameraUI.CompositingMode.Manual:
-                                // The user manually composite the UI.
-                                break;
-                        }
                     }
                 }
             }
