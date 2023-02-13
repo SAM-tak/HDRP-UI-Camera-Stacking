@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 4607.833, g: 2944.3262, b: 2168.2734, a: 1}
+  m_IndirectSpecularColor: {r: 4606.592, g: 2943.336, b: 2167.0547, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -5300,6 +5300,7 @@ GameObject:
   - component: {fileID: 1168097869}
   - component: {fileID: 1168097868}
   - component: {fileID: 1168097867}
+  - component: {fileID: 1168097872}
   m_Layer: 0
   m_Name: First Camera
   m_TagString: MainCamera
@@ -5517,6 +5518,39 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1168097872
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1168097866}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 26d6499a6bd256e47b859377446493a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_IsGlobal: 0
+  fadeRadius: 0
+  priority: 0
+  customPasses:
+  - rid: 5511003270343294986
+  injectionPoint: 3
+  m_TargetCamera: {fileID: 1168097870}
+  useTargetCamera: 1
+  references:
+    version: 2
+    RefIds:
+    - rid: 5511003270343294986
+      type: {class: CameraStackingCompositing, ns: , asm: Unity.RenderPipelines.HighDefinition.Runtime}
+      data:
+        m_Name: Custom Pass
+        enabled: 1
+        targetColorBuffer: 0
+        targetDepthBuffer: 0
+        clearFlags: 0
+        passFoldout: 0
+        m_Version: 0
 --- !u!1 &1183651911
 GameObject:
   m_ObjectHideFlags: 0
@@ -7391,6 +7425,7 @@ GameObject:
   - component: {fileID: 1625123377}
   - component: {fileID: 1625123380}
   - component: {fileID: 1625123381}
+  - component: {fileID: 1625123382}
   m_Layer: 0
   m_Name: Second Camera
   m_TagString: MainCamera
@@ -7608,6 +7643,39 @@ MonoBehaviour:
   m_MoveSpeed: 10
   m_MoveSpeedIncrement: 2.5
   m_Turbo: 10
+--- !u!114 &1625123382
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1625123376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 26d6499a6bd256e47b859377446493a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_IsGlobal: 0
+  fadeRadius: 0
+  priority: 0
+  customPasses:
+  - rid: 5511003270343294986
+  injectionPoint: 3
+  m_TargetCamera: {fileID: 1625123378}
+  useTargetCamera: 1
+  references:
+    version: 2
+    RefIds:
+    - rid: 5511003270343294986
+      type: {class: CameraStackingCompositing, ns: , asm: Unity.RenderPipelines.HighDefinition.Runtime}
+      data:
+        m_Name: Custom Pass
+        enabled: 1
+        targetColorBuffer: 0
+        targetDepthBuffer: 0
+        clearFlags: 0
+        passFoldout: 0
+        m_Version: 0
 --- !u!1 &1635608511
 GameObject:
   m_ObjectHideFlags: 0

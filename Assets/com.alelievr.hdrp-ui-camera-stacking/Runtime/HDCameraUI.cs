@@ -120,10 +120,6 @@ public class HDCameraUI : MonoBehaviour
 
     [SerializeField]
     internal bool showAdvancedSettings;
-    [SerializeField]
-    Shader blitWithBlending; // Force the serialization of the shader in the scene so it ends up in the build
-    [SerializeField]
-    Shader blitInitBackground;
 
     internal Camera attachedCamera;
     HDAdditionalCameraData data;
@@ -167,13 +163,6 @@ public class HDCameraUI : MonoBehaviour
         renderingSampler = new ProfilingSampler("UI Rendering");
         uiCameraStackingSampler = new ProfilingSampler("Render UI Camera Stacking");
         initTransparentUIBackgroundSampler = new ProfilingSampler("Init Transparent UI Background");
-
-        if (blitWithBlending == null)
-            blitWithBlending = Shader.Find("Hidden/HDRP/UI_Compositing");
-        if (blitInitBackground == null)
-            blitInitBackground = Shader.Find("Hidden/HDRP/InitTransparentUIBackground");
-
-        CameraStackingCompositing.uiList.Add(this);
     }
 
     void OnDisable()
@@ -188,7 +177,6 @@ public class HDCameraUI : MonoBehaviour
             return;
 
         data.customRender -= StoreHDCamera;
-        CameraStackingCompositing.uiList.Remove(this);
     }
 
     void UpdateRenderTexture(Camera camera)
@@ -239,8 +227,7 @@ public class HDCameraUI : MonoBehaviour
         return cullingOk;
     }
 
-    void StoreHDCamera(ScriptableRenderContext ctx, HDCamera hdCamera)
-        => currrentRenderingData.hdCamera = hdCamera;
+    void StoreHDCamera(ScriptableRenderContext ctx, HDCamera hdCamera) => currrentRenderingData.hdCamera = hdCamera;
 
     internal bool DirectRendering => compositingMode == CompositingMode.Automatic && !skipCameraColorInit;
 

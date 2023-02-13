@@ -5,42 +5,45 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
 using System.Linq;
 
-#if UNITY_EDITOR
-using UnityEditor;
-
-[InitializeOnLoad]
-#endif
-public static class CameraStackingCompositing
+public class CameraStackingCompositing : CustomPass
 {
-    public static ProfilingSampler compositingSampler;
-    public static List<HDCameraUI> uiList = new();
-    public static Dictionary<Camera, HDAdditionalCameraData> hdAdditionalCameraData = new();
+    public HDCameraUI[] uiCameras;
+    [SerializeField, HideInInspector]
+    Shader blitWithBlending; // Force the serialization of the shader in the scene so it ends up in the build
+    [SerializeField, HideInInspector]
+    Shader blitInitBackground; // Force the serialization of the shader in the scene so it ends up in the build
+
     public static Material compositingMaterial;
     public static Material backgroundBlitMaterial;
-    static readonly MaterialPropertyBlock uiProperties = new();
+    public static MaterialPropertyBlock uiProperties;
+    readonly Dictionary<Camera, HDAdditionalCameraData> hdAdditionalCameraData = new();
+    ProfilingSampler compositingSampler;
 
-    static CameraStackingCompositing()
+    protected override void Setup(ScriptableRenderContext renderContext, CommandBuffer cmd)
     {
-        OnLoad();
-    }
-
-    [RuntimeInitializeOnLoadMethod]
-    static void OnLoad()
-    {
-        RenderPipelineManager.endCameraRendering -= EndCameraRendering;
-        RenderPipelineManager.endCameraRendering += EndCameraRendering;
         compositingSampler = new ProfilingSampler("Composite UI Camera Stacking");
 
+        uiProperties ??= new();
+
+        if (blitWithBlending == null)
+            blitWithBlending = Shader.Find("Hidden/HDRP/UI_Compositing");
+        if (blitInitBackground == null)
+            blitInitBackground = Shader.Find("Hidden/HDRP/InitTransparentUIBackground");
+
         if (compositingMaterial == null)
-            compositingMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Hidden/HDRP/UI_Compositing"));
+            compositingMaterial = CoreUtils.CreateEngineMaterial(blitWithBlending);
         if (backgroundBlitMaterial == null)
-            backgroundBlitMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Hidden/HDRP/InitTransparentUIBackground"));
+            backgroundBlitMaterial = CoreUtils.CreateEngineMaterial(blitInitBackground);
     }
 
-    static void EndCameraRendering(ScriptableRenderContext ctx, Camera camera)
+    protected override void Execute(CustomPassContext ctx)
     {
         if (RenderPipelineManager.currentPipeline is not HDRenderPipeline)
             return;
+
+        if (ctx.hdCamera == null) return;
+
+        var camera = ctx.hdCamera.camera;
 
         // Only composite game camera with UI for now
         if (camera.cameraType != CameraType.Game)
@@ -56,13 +59,11 @@ public static class CameraStackingCompositing
             return;
 
         var cmd = CommandBufferPool.Get();
-        uiList.Sort((c0, c1) => c0.priority.CompareTo(c1.priority));
         using (new ProfilingScope(cmd, compositingSampler))
         {
-            CoreUtils.SetRenderTarget(cmd, BuiltinRenderTextureType.CameraTarget);
-            foreach (var ui in uiList)
+            //CoreUtils.SetRenderTarget(ctx.cmd, BuiltinRenderTextureType.CameraTarget);
+            foreach (var ui in uiCameras.Where(x => x && x.IsActive).OrderBy(x => x.priority))
             {
-                if (!ui.IsActive) continue;
                 // Check if the target camera in HDCameraUI matches the current camera
                 switch (ui.targetCamera)
                 {
@@ -82,7 +83,7 @@ public static class CameraStackingCompositing
 
                 // Render the UI of the camera using the current back buffer as clear value
                 RenderTargetIdentifier target = camera.targetTexture != null ? camera.targetTexture : BuiltinRenderTextureType.CameraTarget;
-                ui.RenderUI(ctx, cmd, target);
+                ui.RenderUI(ctx.renderContext, cmd, target);
 
                 if (!ui.DirectRendering)
                 {
@@ -112,8 +113,8 @@ public static class CameraStackingCompositing
                 }
             }
         }
-        ctx.ExecuteCommandBuffer(cmd);
-        ctx.Submit();
+        ctx.renderContext.ExecuteCommandBuffer(cmd);
+        ctx.renderContext.Submit();
         CommandBufferPool.Release(cmd);
     }
 }
