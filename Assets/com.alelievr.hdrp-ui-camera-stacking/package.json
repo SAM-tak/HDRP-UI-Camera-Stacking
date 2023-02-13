@@ -1,7 +1,7 @@
 {
   "name": "com.alelievr.hdrp-ui-camera-stacking",
   "displayName": "HDRP UI Camera Stacking",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "unity": "2020.2",
   "description": "This package includes a component that overrides the behavior of a camera in HDRP and greatly improves the performances to render the screen-space UI. It also prevents issues like motion vectors and depth clipping on the UI elements.",
   "keywords": [
@@ -14,9 +14,8 @@
     "com.unity.render-pipelines.high-definition": "10.1.0"
   },
   "hideInEditor": false,
-  "author":
-  {
-    "name": "Antoine Lelièvre",
-    "url": "https://github.com/alelievr"
+  "author": {
+    "name": "Antoine Lelièvre, SAM-tak",
+    "url": "https://github.com/SAM-tak/HDRP-UI-Camera-Stacking"
   }
 }

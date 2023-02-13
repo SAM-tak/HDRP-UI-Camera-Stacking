@@ -39,17 +39,9 @@ public class HDCameraUI : MonoBehaviour
         Specific,
     }
 
-    /// <summary>
-    /// Select which layer mask to use to render the UI.
-    /// </summary>
-    [Tooltip("Select which layer mask to use to render the UI.")]
-    public LayerMask uiLayerMask = 1 << 5;
+    public LayerMask uiLayerMask => attachedCamera ? (LayerMask)attachedCamera.cullingMask : (LayerMask)0;
 
-    /// <summary>
-    /// Select in which order the UI cameras are composited, higher priority will be executed before.
-    /// </summary>
-    [Tooltip("Select in which order the UI cameras are composited, higher priority will be executed before.")]
-    public float priority = 0;
+    public float priority => attachedCamera ? attachedCamera.depth : 0f;
 
     /// <summary>
     /// Specifies the compositing mode to use when combining the UI render texture and the camera color.
@@ -74,28 +66,21 @@ public class HDCameraUI : MonoBehaviour
     /// </summary>
     public int compositingMaterialPass;
 
-    [HideInInspector]
-    RenderTexture internalRenderTexture;
+    /// <summary>
+    /// Override Material. Leaving it to null, render normally.
+    /// </summary>
+    public Material overrideMaterial;
 
     /// <summary>
-    /// The render texture used to render the UI. This field can reflect the camera target texture if not null.
+    /// The pass name of the override material to use.
     /// </summary>
-    public RenderTexture renderTexture
-    {
-        get => attachedCamera.targetTexture == null ? internalRenderTexture : attachedCamera.targetTexture;
-        set => attachedCamera.targetTexture = value;
-    }
+    public int overrideMaterialPass;
 
     /// <summary>
     /// Specifies the graphics format to use when rendering the UI.
     /// </summary>
     [Tooltip("Specifies the graphics format to use when rendering the UI.")]
-    public GraphicsFormat graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
-
-    /// <summary>
-    /// Copy the UI after rendering in the camera buffer. Useful if you need to use the target BuiltinRenderTextureType.CameraTarget in C#.
-    /// </summary>
-    public bool renderInCameraBuffer;
+    public GraphicsFormat graphicsFormat = GraphicsFormat.R8G8B8A8_SRGB;
 
     /// <summary>
     /// Specifies on which camera the UI needs to be rendered. The default is Main Camera only.
@@ -118,23 +103,21 @@ public class HDCameraUI : MonoBehaviour
     public bool skipCameraColorInit;
 
     /// <summary>
-    /// Event triggered just before the rendering of the UI (after the culling)
+    /// Disable the clear of depth buffer before UI rendering. Useful if you need culling UI from geometry intentionally.
     /// </summary>
-    public event Action beforeUIRendering;
-
-    /// <summary>
-    /// Event triggered just after the rendering of the UI.
-    /// </summary>
-    public event Action afterUIRendering;
+    public bool noClearDepth;
 
     internal struct RenderingData
     {
         public HDCamera hdCamera;
     }
 
+    public RenderTexture internalRenderTexture { get; protected set; }
+
     internal RenderingData currrentRenderingData;
 
     CullingResults cullingResults;
+
     [SerializeField]
     internal bool showAdvancedSettings;
     [SerializeField]
@@ -148,7 +131,6 @@ public class HDCameraUI : MonoBehaviour
     ProfilingSampler cullingSampler;
     ProfilingSampler renderingSampler;
     ProfilingSampler uiCameraStackingSampler;
-    ProfilingSampler copyToCameraTargetSampler;
     ProfilingSampler initTransparentUIBackgroundSampler;
 
     // Start is called before the first frame update
@@ -171,17 +153,19 @@ public class HDCameraUI : MonoBehaviour
             HDShaderPassNames.s_SRPDefaultUnlitName
         };
 
-        // TODO: Add VR support
-        internalRenderTexture = new RenderTexture(1, 1, 0, graphicsFormat, 1);
-        internalRenderTexture.dimension = TextureDimension.Tex2DArray;
-        internalRenderTexture.volumeDepth = 1;
-        internalRenderTexture.depth = 24;
-        internalRenderTexture.name = "HDCameraUI Output Target";
+        if(!internalRenderTexture && !DirectRendering)
+        {
+            // TODO: Add VR support
+            internalRenderTexture = new RenderTexture(1, 1, 24, graphicsFormat, 1) {
+                dimension = TextureDimension.Tex2DArray,
+                volumeDepth = 1,
+                name = $"HDCameraUI ({name}) Output Target"
+            };
+        }
 
         cullingSampler = new ProfilingSampler("UI Culling");
         renderingSampler = new ProfilingSampler("UI Rendering");
         uiCameraStackingSampler = new ProfilingSampler("Render UI Camera Stacking");
-        copyToCameraTargetSampler = new ProfilingSampler("Copy To Camera Target");
         initTransparentUIBackgroundSampler = new ProfilingSampler("Init Transparent UI Background");
 
         if (blitWithBlending == null)
@@ -194,7 +178,13 @@ public class HDCameraUI : MonoBehaviour
 
     void OnDisable()
     {
-        if (data == null)
+        if(internalRenderTexture) {
+            internalRenderTexture.Release();
+            DestroyImmediate(internalRenderTexture);
+            internalRenderTexture = null;
+        }
+
+        if(data == null)
             return;
 
         data.customRender -= StoreHDCamera;
@@ -203,9 +193,25 @@ public class HDCameraUI : MonoBehaviour
 
     void UpdateRenderTexture(Camera camera)
     {
-        if (camera.pixelWidth != internalRenderTexture.width
-            || camera.pixelHeight != internalRenderTexture.height
-            || internalRenderTexture.graphicsFormat != graphicsFormat)
+        if(!internalRenderTexture && !DirectRendering)
+        {
+            // TODO: Add VR support
+            internalRenderTexture = new RenderTexture(Mathf.Max(4, camera.pixelWidth), Mathf.Max(4, camera.pixelHeight), 24, graphicsFormat, 1) {
+                dimension = TextureDimension.Tex2DArray,
+                volumeDepth = 1,
+                name = $"HDCameraUI ({name}) Output Target"
+            };
+        }
+        else if(internalRenderTexture && DirectRendering)
+        {
+            internalRenderTexture.Release();
+            DestroyImmediate(internalRenderTexture);
+            internalRenderTexture = null;
+        }
+        else if(internalRenderTexture
+            && ( camera.pixelWidth != internalRenderTexture.width
+              || camera.pixelHeight != internalRenderTexture.height
+              || internalRenderTexture.graphicsFormat != graphicsFormat))
         {
             internalRenderTexture.Release();
             internalRenderTexture.width = Mathf.Max(4, camera.pixelWidth);
@@ -233,50 +239,19 @@ public class HDCameraUI : MonoBehaviour
         return cullingOk;
     }
 
-    void RenderUI(CommandBuffer cmd, ScriptableRenderContext ctx, Camera camera, RenderTexture targetTexture, RenderTargetIdentifier targetClearValue)
-    {
-        beforeUIRendering?.Invoke();
-
-        using (new ProfilingScope(cmd, renderingSampler))
-        {
-            if (!skipCameraColorInit)
-            {
-                using (new ProfilingScope(cmd, initTransparentUIBackgroundSampler))
-                    cmd.Blit(targetClearValue, targetTexture, CameraStackingCompositing.backgroundBlitMaterial);
-            }
-
-            CoreUtils.SetRenderTarget(cmd, targetTexture.colorBuffer, targetTexture.depthBuffer, skipCameraColorInit ? ClearFlag.All : ClearFlag.DepthStencil);
-        }
-
-            var drawSettings = new DrawingSettings
-            {
-                sortingSettings = new SortingSettings(camera) { criteria = SortingCriteria.CommonTransparent | SortingCriteria.CanvasOrder | SortingCriteria.RendererPriority }
-            };
-            for (int i = 0; i < hdTransparentPassNames.Length; i++)
-                drawSettings.SetShaderPassName(i, hdTransparentPassNames[i]);
-
-            var filterSettings = new FilteringSettings(RenderQueueRange.all, uiLayerMask);
-
-            ctx.ExecuteCommandBuffer(cmd);
-            ctx.DrawRenderers(cullingResults, ref drawSettings, ref filterSettings);
-
-        cmd.Clear();
-
-        afterUIRendering?.Invoke();
-    }
-
     void StoreHDCamera(ScriptableRenderContext ctx, HDCamera hdCamera)
         => currrentRenderingData.hdCamera = hdCamera;
 
-    internal void DoRenderUI(ScriptableRenderContext ctx, CommandBuffer cmd, RenderTargetIdentifier targetClearValue)
+    internal bool DirectRendering => compositingMode == CompositingMode.Automatic && !skipCameraColorInit;
+
+    internal void RenderUI(ScriptableRenderContext ctx, CommandBuffer cmd, RenderTargetIdentifier target)
     {
-        var hdrp = RenderPipelineManager.currentPipeline as HDRenderPipeline;
-        if (hdrp == null)
+        if(RenderPipelineManager.currentPipeline is not HDRenderPipeline hdrp)
             return;
 
         var hdCamera = currrentRenderingData.hdCamera;
 
-        if (!hdCamera.camera.enabled)
+        if (hdCamera == null || !hdCamera.camera.enabled)
             return;
 
         if (hdCamera.xr.enabled)
@@ -294,15 +269,44 @@ public class HDCameraUI : MonoBehaviour
 
         using (new ProfilingScope(cmd, uiCameraStackingSampler))
         {
-            if (CullUI(cmd, ctx, hdCamera.camera))
+            if(CullUI(cmd, ctx, hdCamera.camera))
             {
-                RenderUI(cmd, ctx, hdCamera.camera, renderTexture, targetClearValue);
-
-                if (renderInCameraBuffer && hdCamera.camera.targetTexture == null)
+                using (new ProfilingScope(cmd, renderingSampler))
                 {
-                    using (new ProfilingScope(cmd, copyToCameraTargetSampler))
-                        cmd.Blit(renderTexture, BuiltinRenderTextureType.CameraTarget, 0, 0);
+                    if(!internalRenderTexture)
+                    {
+                        CoreUtils.SetRenderTarget(cmd, target, noClearDepth ? ClearFlag.None : ClearFlag.Depth);
+                    }
+                    else if(skipCameraColorInit)
+                    {
+                        CoreUtils.SetRenderTarget(cmd, internalRenderTexture.colorBuffer, internalRenderTexture.depthBuffer, noClearDepth ? ClearFlag.Color : ClearFlag.Color | ClearFlag.Depth);
+                    }
+                    else
+                    {
+                        using (new ProfilingScope(cmd, initTransparentUIBackgroundSampler))
+                            cmd.Blit(target, internalRenderTexture, CameraStackingCompositing.backgroundBlitMaterial);
+                        CoreUtils.SetRenderTarget(cmd, internalRenderTexture.colorBuffer, internalRenderTexture.depthBuffer, noClearDepth ? ClearFlag.None : ClearFlag.Depth);
+                    }
                 }
+
+                cmd.SetViewport(hdCamera.camera.pixelRect);
+
+                var drawSettings = new DrawingSettings {
+                    overrideMaterial = overrideMaterial,
+                    overrideMaterialPassIndex = overrideMaterialPass,
+                    sortingSettings = new SortingSettings(hdCamera.camera) {
+                        criteria = SortingCriteria.CommonTransparent | SortingCriteria.CanvasOrder | SortingCriteria.RendererPriority
+                    }
+                };
+                for(int i = 0; i < hdTransparentPassNames.Length; i++)
+                    drawSettings.SetShaderPassName(i, hdTransparentPassNames[i]);
+
+                var filterSettings = new FilteringSettings(RenderQueueRange.all, uiLayerMask);
+
+                ctx.ExecuteCommandBuffer(cmd);
+                ctx.DrawRenderers(cullingResults, ref drawSettings, ref filterSettings);
+
+                cmd.Clear();
             }
             ctx.ExecuteCommandBuffer(cmd);
         }

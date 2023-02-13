@@ -10,8 +10,6 @@ using System.Linq;
 [CanEditMultipleObjects]
 public class HDCameraUIEditor : Editor
 {
-    SerializedProperty uiLayerMask;
-    SerializedProperty priority;
     SerializedProperty compositingMaterial;
     SerializedProperty graphicsFormat;
     SerializedProperty targetCamera;
@@ -19,8 +17,10 @@ public class HDCameraUIEditor : Editor
     SerializedProperty targetCameraObject;
     SerializedProperty compositingMode;
     SerializedProperty compositingMaterialPass;
-    SerializedProperty renderInCameraBuffer;
+    SerializedProperty overrideMaterial;
+    SerializedProperty overrideMaterialPass;
     SerializedProperty skipCameraColorInit;
+    SerializedProperty noClearDepth;
     HDCameraUI cameraUI;
 
     Editor materialEditor;
@@ -54,24 +54,24 @@ public class HDCameraUIEditor : Editor
     void OnEnable()
     {
         cameraUI = target as HDCameraUI;
-        uiLayerMask = serializedObject.FindProperty(nameof(cameraUI.uiLayerMask));
-        priority = serializedObject.FindProperty(nameof(cameraUI.priority));
-        compositingMaterial = serializedObject.FindProperty(nameof(cameraUI.compositingMaterial));
-        graphicsFormat = serializedObject.FindProperty(nameof(cameraUI.graphicsFormat));
         compositingMode = serializedObject.FindProperty(nameof(cameraUI.compositingMode));
+        compositingMaterial = serializedObject.FindProperty(nameof(cameraUI.compositingMaterial));
         compositingMaterialPass = serializedObject.FindProperty(nameof(cameraUI.compositingMaterialPass));
-        renderInCameraBuffer = serializedObject.FindProperty(nameof(cameraUI.renderInCameraBuffer));
+        overrideMaterial = serializedObject.FindProperty(nameof(cameraUI.overrideMaterial));
+        overrideMaterialPass = serializedObject.FindProperty(nameof(cameraUI.overrideMaterialPass));
         targetCamera = serializedObject.FindProperty(nameof(cameraUI.targetCamera));
         targetCameraLayer = serializedObject.FindProperty(nameof(cameraUI.targetCameraLayer));
         targetCameraObject = serializedObject.FindProperty(nameof(cameraUI.targetCameraObject));
-        skipCameraColorInit = serializedObject.FindProperty(nameof(skipCameraColorInit));
+        graphicsFormat = serializedObject.FindProperty(nameof(cameraUI.graphicsFormat));
+        skipCameraColorInit = serializedObject.FindProperty(nameof(cameraUI.skipCameraColorInit));
+        noClearDepth = serializedObject.FindProperty(nameof(cameraUI.noClearDepth));
     }
 
     void OnDisable()
     {
         if (materialEditor != null)
         {
-            Object.DestroyImmediate(materialEditor);
+            DestroyImmediate(materialEditor);
             materialEditor = null;
         }
     }
@@ -79,9 +79,6 @@ public class HDCameraUIEditor : Editor
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
-
-        EditorGUILayout.PropertyField(uiLayerMask);
-        EditorGUILayout.PropertyField(priority);
 
         // Show Mode
         EditorGUILayout.PropertyField(compositingMode);
@@ -136,10 +133,25 @@ public class HDCameraUIEditor : Editor
         {
             using (new EditorGUI.IndentLevelScope())
             {
+                EditorGUILayout.PropertyField(overrideMaterial);
+
+                if (overrideMaterial.objectReferenceValue is Material mat)
+                {
+                    if (mat.passCount > 1)
+                    {
+                        var overrideMaterialPassRect = EditorGUILayout.GetControlRect(true);
+                        EditorGUI.BeginProperty(overrideMaterialPassRect, GUIContent.none, overrideMaterialPass);
+                        var passNames = Enumerable.Range(0, mat.passCount).Select(i => mat.GetPassName(i)).ToArray();
+                        overrideMaterialPass.intValue = EditorGUI.Popup(overrideMaterialPassRect, overrideMaterialPass.intValue, passNames);
+                        EditorGUI.EndProperty();
+                    }
+                    else
+                        overrideMaterialPass.intValue = 0;
+                }
+
                 EditorGUILayout.PropertyField(graphicsFormat);
-                if (cameraUI.attachedCamera.targetTexture == null)
-                    EditorGUILayout.PropertyField(renderInCameraBuffer);
                 EditorGUILayout.PropertyField(skipCameraColorInit);
+                EditorGUILayout.PropertyField(noClearDepth);
             }
         }
 
