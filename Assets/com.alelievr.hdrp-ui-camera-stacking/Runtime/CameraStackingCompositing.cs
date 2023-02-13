@@ -12,7 +12,6 @@ using UnityEditor;
 
 [InitializeOnLoad]
 #endif
-
 public static class CameraStackingCompositing
 {
     public static ProfilingSampler compositingSampler;
@@ -20,7 +19,7 @@ public static class CameraStackingCompositing
     public static Dictionary<Camera, HDAdditionalCameraData> hdAdditionalCameraData = new();
     public static Material compositingMaterial;
     public static Material backgroundBlitMaterial;
-    static MaterialPropertyBlock uiProperties = new();
+    static readonly MaterialPropertyBlock uiProperties = new();
 
     static CameraStackingCompositing()
     {
@@ -52,7 +51,7 @@ public static class CameraStackingCompositing
 
     static void EndCameraRendering(ScriptableRenderContext ctx, Camera camera)
     {
-        if (!(RenderPipelineManager.currentPipeline is HDRenderPipeline))
+        if (RenderPipelineManager.currentPipeline is not HDRenderPipeline)
             return;
 
         // Only composite game camera with UI for now
@@ -65,7 +64,7 @@ public static class CameraStackingCompositing
         if (hdData == null)
             hdData = hdAdditionalCameraData[camera] = camera.GetComponent<HDAdditionalCameraData>();
 
-        if (hdData?.hasCustomRender == true)
+        if (hdData != null && hdData.hasCustomRender)
             return;
 
         TryInitMaterials();
@@ -77,29 +76,30 @@ public static class CameraStackingCompositing
             CoreUtils.SetRenderTarget(cmd, BuiltinRenderTextureType.CameraTarget);
             foreach (var ui in uiList)
             {
-                if (ui.IsActive())
+                if (!ui.IsActive) continue;
+                // Check if the target camera in HDCameraUI matches the current camera
+                switch (ui.targetCamera)
                 {
-                    // Check if the target camera in HDCameraUI matches the current camera
-                    switch (ui.targetCamera)
-                    {
-                        case HDCameraUI.TargetCamera.Main:
-                            if (camera != Camera.main)
-                                continue;
-                            break;
-                        case HDCameraUI.TargetCamera.Layer:
-                            if (((1 << camera.gameObject.layer) & ui.targetCameraLayer) == 0)
-                                continue;
-                            break;
-                        case HDCameraUI.TargetCamera.Specific:
-                            if (camera != ui.targetCameraObject)
-                                continue;
-                            break;
-                    }
+                    case HDCameraUI.TargetCamera.Main:
+                        if (camera != Camera.main)
+                            continue;
+                        break;
+                    case HDCameraUI.TargetCamera.Layer:
+                        if (((1 << camera.gameObject.layer) & ui.targetCameraLayer) == 0)
+                            continue;
+                        break;
+                    case HDCameraUI.TargetCamera.Specific:
+                        if (camera != ui.targetCameraObject)
+                            continue;
+                        break;
+                }
 
                     // Render the UI of the camera using the current back buffer as clear value
                     RenderTexture target = camera.targetTexture;
-                    ui.DoRenderUI(ctx, cmd, target);
+                    ui.RenderUI(ctx, cmd, target);
 
+                if (!ui.DirectRendering)
+                {
                     bool bindArray = ui.renderTexture.dimension == TextureDimension.Tex2DArray;
                     uiProperties.SetTexture("_MainTex2D", bindArray ? Texture2D.whiteTexture : ui.renderTexture);
                     uiProperties.SetTexture("_MainTex2DArray", bindArray ? ui.renderTexture : (Texture)TextureXR.GetWhiteTexture());
@@ -155,7 +155,7 @@ public static class CameraStackingCompositing
                                 break;
                         }
                     }
-                }
+                }}
             }
         }
         ctx.ExecuteCommandBuffer(cmd);

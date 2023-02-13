@@ -14,9 +14,8 @@
     "com.unity.render-pipelines.high-definition": "10.1.0"
   },
   "hideInEditor": false,
-  "author":
-  {
-    "name": "Antoine Lelièvre",
-    "url": "https://github.com/alelievr"
+  "author": {
+    "name": "Antoine Lelièvre, SAM-tak",
+    "url": "https://github.com/SAM-tak/HDRP-UI-Camera-Stacking"
   }
 }
